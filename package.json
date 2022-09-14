@@ -41,6 +41,7 @@
     "webpack-cli": "^4.10.0"
   },
   "dependencies": {
+    "@i-xi-dev/pubsub": "^2.0.2",
     "@i-xi-dev/ui-utils": "^1.1.1"
   }
 }

@@ -1,3 +1,4 @@
+import { PubSub } from "@i-xi-dev/pubsub";
 import { UiUtils } from "@i-xi-dev/ui-utils";
 
 const _VAR_PREFIX = "ixi";
@@ -111,13 +112,6 @@ function _newPointerPosition(): _PointerPosition {
   };
 }
 
-type PointerDownListener = (pointerPosition: _PointerPosition) => void | Promise<void>;
-
-type AddPointerDownListenerOptions = {
-  once?: boolean,
-  signal?: AbortSignal,
-};
-
 let _singleton: Viewport | null = null;
 
 /**
@@ -130,7 +124,7 @@ class Viewport {
 
   #styleRule: CSSStyleRule | null;
 
-  #pointerDownListeners: Set<{ listener: PointerDownListener, options: AddPointerDownListenerOptions }>;
+  #broker: PubSub.Broker<_PointerPosition>;
 
   #pageDs: _PageMetrics;
 
@@ -167,7 +161,7 @@ class Viewport {
       this.#styleRule = null;
     }
 
-    this.#pointerDownListeners = new Set();
+    this.#broker = new PubSub.Broker();
 
     const { page, layoutViewport, visualViewport } = _getMetrics(this.#view);
     this.#pageDs = page;
@@ -200,12 +194,7 @@ class Viewport {
           layoutViewportX: event.pageX - this.#view.scrollX,
           layoutViewportY: event.pageY - this.#view.scrollY,
         };
-        for (const registered of this.#pointerDownListeners.values()) {
-          if (registered.options.once === true) {
-            this.#pointerDownListeners.delete(registered);
-          }
-          registered.listener(Object.assign({}, pointerPosition));
-        }
+        this.#broker.publish(event.pointerType, Object.assign({}, pointerPosition));
       }
     }, UiUtils.ListenerOptions.PASSIVE);
 
@@ -242,21 +231,11 @@ class Viewport {
     });
   }
 
-
-  addPointerDownListener(listener: PointerDownListener, options: AddPointerDownListenerOptions = {}): void {
-    const target = { listener, options };
-    if (options.signal instanceof AbortSignal) {
-      if (options.signal.aborted === true) {
-        return;
-      }
-      else {
-        options.signal.addEventListener("abort", () => {
-          this.#pointerDownListeners.delete(target);
-        }, { once: true, passive: true });
-      }
-    }
-    this.#pointerDownListeners.add(target);
+  subscribePointerDown(pointerType: UiUtils.PointerType, callback: (pointerPosition: _PointerPosition) => Promise<void>, options: PubSub.SubscriptionOptions = {}): void {
+    this.#broker.subscribe(pointerType, callback, options);
   }
+
+
 
   //TODO lockOrientation()
   //TODO unlockOrientation()
